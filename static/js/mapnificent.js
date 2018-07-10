@@ -206,14 +206,13 @@ MapnificentPosition.prototype.getReachableStations = function(stationsAround, st
 
   var getLngRadius = function(lat, mradius){
     var equatorLength = 40075017,
-      hLength = equatorLength * Math.cos(L.LatLng.DEG_TO_RAD * lat);
+      hLength = equatorLength * Math.cos(Math.PI / 180 * lat);
 
     return (mradius / hLength) * 360;
   };
 
   var maxWalkTime = this.mapnificent.settings.maxWalkTime;
   var secondsPerKm = this.mapnificent.settings.secondsPerKm;
-
 
   var convert = function(station, reachableIn) {
     var secs = Math.min((self.time - reachableIn), maxWalkTime);
@@ -302,7 +301,7 @@ Mapnificent.prototype.init = function(){
   self.tilesLoading = false;
   return this.loadData().done(function(data){
     self.prepareData(data);
-    self.canvasTileLayer = L.tileLayer.canvas();
+    self.canvasTileLayer = L.gridLayer();
     self.canvasTileLayer.on('loading', function(){
       self.tilesLoading = true;
       t0 = new Date().getTime();
@@ -316,7 +315,7 @@ Mapnificent.prototype.init = function(){
       console.log('reloading tile layer took', self.redrawTime, 'ms');
     });
 
-    self.canvasTileLayer.drawTile = self.drawTile();
+    self.canvasTileLayer.createTile = self.createTile();
     self.map.addLayer(self.canvasTileLayer);
     self.map.on('click', function(e) {
         self.addPosition(e.latlng);
@@ -504,54 +503,56 @@ Mapnificent.prototype.triggerHashUpdate = function() {
   this.hash.onMapMove();
 }
 
-Mapnificent.prototype.drawTile = function() {
+Mapnificent.prototype.createTile = function() {
   var self = this;
-
   var maxWalkTime = this.settings.maxWalkTime;
   var secondsPerKm = this.settings.secondsPerKm;
 
-  return function(canvas, tilePoint) {
+  return function(coords) {
+	var canvas = L.DomUtil.create('canvas', 'mapnificent-tile');
     if (!self.stationList || !self.positions.length) {
-      return;
+      return canvas;
     }
-    var ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    /* Figure out how many stations we have to look at around
-       this tile.
-    */
+    // setup tile width and height according to the options
+    var size = this.getTileSize();
+    canvas.width = size.x;
+    canvas.height = size.y;
 
+    /* Figure out how many stations we have to look at around this tile. */
     var tileSize = this.options.tileSize;
-    var start = tilePoint.multiplyBy(tileSize);
-    var end = start.add([tileSize, 0]);
-    var startLatLng = this._map.unproject(start);
-    var endLatLng = this._map.unproject(end);
+    var start = coords.multiplyBy(tileSize);
+    var startLatLng = this._map.unproject(start, coords.z);
+    var end = start.add([coords.x, 0]);
+    var endLatLng = this._map.unproject(end, coords.z);
     var spanInMeters = startLatLng.distanceTo(endLatLng);
     var maxWalkDistance = maxWalkTime * (1 / secondsPerKm) * 1000;
-    var middle = start.add([tileSize / 2, tileSize / 2]);
-    var latlng = this._map.unproject(middle);
+    var middle = start.add([size.x / 2, size.y / 2]);
+    var latlng = this._map.unproject(middle, coords.z);
 
     var searchRadius = Math.sqrt(spanInMeters * spanInMeters + spanInMeters * spanInMeters);
-    searchRadius += maxWalkDistance;
+    var stationsAround = self.quadtree.searchInRadius(latlng.lat, latlng.lng, searchRadius + maxWalkDistance);
 
-    var stationsAround = self.quadtree.searchInRadius(latlng.lat, latlng.lng, searchRadius);
-
+    var ctx = canvas.getContext('2d');
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = 'rgba(50,50,50,0.4)';
+    // darken whole tile
+    ctx.fillStyle = 'rgba(50, 50, 50, 0.4)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
+    // lighten areas that are reachable
     ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = 'rgba(0,0,0,1)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 1)';
 
     for (var i = 0; i < self.positions.length; i += 1) {
       var drawStations = self.positions[i].getReachableStations(stationsAround, start, tileSize);
       for (var j = 0; j < drawStations.length; j += 1) {
+    	var ds = drawStations[j];
         ctx.beginPath();
-        ctx.arc(drawStations[j].x, drawStations[j].y,
-                drawStations[j].r, 0, 2 * Math.PI, false);
-        ctx.fill();
+	    ctx.arc(ds.x, ds.y, ds.r, 0, 2 * Math.PI, false);
+	    ctx.fill();
       }
     }
+
+    return canvas;
   };
 };
 
@@ -622,7 +623,7 @@ Mapnificent.prototype.augmentLeafletHash = function() {
   this.hash = new L.Hash(this.map);
 };
 
-//
+
 // onMapMove: function() {
 //   // bail if we're moving the map (updating from a hash),
 //   // or if the map is not yet loaded
