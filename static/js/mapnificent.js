@@ -201,7 +201,7 @@ MapnificentPosition.prototype.startCalculation = function(){
   });
 };
 
-MapnificentPosition.prototype.getReachableStations = function(stationsAround, start, tileSize) {
+MapnificentPosition.prototype.getReachableStations = function(stationsAround, start, coords) {
   var self = this;
 
   var getLngRadius = function(lat, mradius){
@@ -222,15 +222,24 @@ MapnificentPosition.prototype.getReachableStations = function(stationsAround, st
     var lngRadius = getLngRadius(station.lat, mradius);
     var latlng2 = new L.LatLng(station.lat, station.lng - lngRadius, true);
     var point2 = self.mapnificent.map.latLngToLayerPoint(latlng2);
-
     var lpoint = self.mapnificent.map.latLngToLayerPoint(point);
     var radius = Math.max(Math.round(lpoint.x - point2.x), 1);
 
-    var p = self.mapnificent.map.project(point);
+    // sadly there is no map.latLngToLayerPoint(point, zoom), so we have to do some post-correction here...
+    // also see:
+    //   - https://stackoverflow.com/questions/46407407/cant-get-correct-point-position-by-latlngtolayerpoint-in-leaflet-grid-canvas
+    //   - https://github.com/Leaflet/Leaflet/issues/3222
+    var dZoom = self.mapnificent.map.getZoom() - coords.z;
+    var fZoom = Math.pow(2, dZoom);
+    if (fZoom != 0) {
+    	radius = radius / fZoom;
+    }
+
+    var p = self.mapnificent.map.project(point, coords.z);
     var x = Math.round(p.x - start.x);
     var y = Math.round(p.y - start.y);
-    if (x + radius < 0 || x - radius > tileSize ||
-        y + radius < 0 || y - radius > tileSize) {
+    if (x + radius < 0 || x - radius > coords.x ||
+        y + radius < 0 || y - radius > coords.y) {
       return null;
     }
     return {x: x, y: y, r: radius};
@@ -519,9 +528,8 @@ Mapnificent.prototype.createTile = function() {
     canvas.width = size.x;
     canvas.height = size.y;
 
-    /* Figure out how many stations we have to look at around this tile. */
-    var tileSize = this.options.tileSize;
-    var start = coords.multiplyBy(tileSize);
+	/* Figure out how many stations we have to look at around this tile. */
+    var start = coords.multiplyBy(size.x);
     var startLatLng = this._map.unproject(start, coords.z);
     var end = start.add([coords.x, 0]);
     var endLatLng = this._map.unproject(end, coords.z);
@@ -534,8 +542,8 @@ Mapnificent.prototype.createTile = function() {
     var stationsAround = self.quadtree.searchInRadius(latlng.lat, latlng.lng, searchRadius + maxWalkDistance);
 
     var ctx = canvas.getContext('2d');
-    ctx.globalCompositeOperation = 'source-over';
     // darken whole tile
+    ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = 'rgba(50, 50, 50, 0.4)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     // lighten areas that are reachable
@@ -543,7 +551,7 @@ Mapnificent.prototype.createTile = function() {
     ctx.fillStyle = 'rgba(0, 0, 0, 1)';
 
     for (var i = 0; i < self.positions.length; i += 1) {
-      var drawStations = self.positions[i].getReachableStations(stationsAround, start, tileSize);
+      var drawStations = self.positions[i].getReachableStations(stationsAround, start, coords);
       for (var j = 0; j < drawStations.length; j += 1) {
     	var ds = drawStations[j];
         ctx.beginPath();
