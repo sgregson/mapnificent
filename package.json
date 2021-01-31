@@ -11,12 +11,19 @@
 	"main": "static/js/mapnificent.js",
 	"private": true,
 	"dependencies": {
-	    "jquery": "~3.3.1",
-	    "leaflet": "~0.7.7",
-	    "leaflet-hash": "~0.2.1",
-	    "bootstrap": "~3.2.0",
-	    "protobufjs": "~6.8.6",
-	    "bytebuffer": "~5.0.1"
+		"jquery": "~3.3.1",
+		"leaflet": "~0.7.7",
+		"leaflet-hash": "~0.2.1",
+		"bootstrap": "~3.2.0",
+		"protobufjs": "~6.8.6",
+		"bytebuffer": "~5.0.1"
 	},
-	"version": "0.0.1"
+	"version": "0.0.1",
+	"prettier": {
+		"trailingComma": "es5",
+		"tabWidth": 2
+	},
+	"devDependencies": {
+		"prettier": "2.2.1"
+	}
 }
