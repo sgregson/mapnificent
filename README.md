@@ -1,3 +1,5 @@
+[![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/mapnificent/mapnificent)
+
 # Mapnificent
 
 Install [yarn](https://yarnpkg.com/) and [jekyll](https://jekyllrb.com/).
