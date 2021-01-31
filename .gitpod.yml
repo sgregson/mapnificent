@@ -1,6 +1,6 @@
 tasks:
   - before: git submodule init && git submodule update
-    init: yarn install && bundle install --full-index
+    init: yarn install && bundle install
     command: bundle exec jekyll serve -w
 ports:
   - port: 4000
