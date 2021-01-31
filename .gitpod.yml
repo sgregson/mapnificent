@@ -1,5 +1,5 @@
 tasks:
-  - init: yarn install && bundle install
-  - command: git submodule init && git submodule update
-  - command: bundle exec jekyll serve -w
+  - before: git submodule init && git submodule update
+    init: yarn install && bundle install
+    command: bundle exec jekyll serve -w
   
